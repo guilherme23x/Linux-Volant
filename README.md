@@ -1,3 +1,7 @@
+
+<img width="1366" height="720" alt="Controller and Server" src="https://github.com/user-attachments/assets/7d6b5ace-5861-4d67-b3ab-d99d04e4a011" />
+
+
 # Volant Controller
 
 Emula um gamepad físico no Linux usando um dispositivo Android. Converte toque e dados do acelerômetro em eventos de kernel via `uinput`.
