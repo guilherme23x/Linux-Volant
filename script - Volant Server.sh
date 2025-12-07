@@ -1,42 +1,39 @@
 #!/bin/bash
 
 # ============================================================
-# GERADOR DE PACOTE .DEB PARA VOLANT SERVER (COM ICON SVG)
+# GERADOR DE PACOTE .DEB - VOLANT SERVER (CORREÇÃO DE ÍCONE)
 # ============================================================
 
 APP_NAME="volant-server"
-VERSION="1.1"
+VERSION="1.0"
 ARCH="all"
-MAINTAINER=""
+MAINTAINER="Voce <seu@email.com>"
 DESC="Servidor de Controle Volant via WebSocket e UInput"
-ICON_FILE="icon.svg"  # <--- Mudança aqui para SVG
+ICON_FILE="icon.svg"  # Certifique-se que este arquivo existe
 
 # Verificação do Ícone
 if [ ! -f "$ICON_FILE" ]; then
-    echo "❌ ERRO: O arquivo '$ICON_FILE' não foi encontrado nesta pasta."
-    echo "Por favor, coloque uma imagem chamada '$ICON_FILE' junto com este script."
+    echo "❌ ERRO: O arquivo '$ICON_FILE' não foi encontrado."
     exit 1
 fi
 
-# Nome da pasta de build
 BUILD_DIR="${APP_NAME}_${VERSION}_${ARCH}"
 
-echo "🔨 [1/7] Limpando builds anteriores..."
+echo "🔨 [1/7] Limpando área de trabalho..."
 rm -rf "$BUILD_DIR"
 rm -f "${APP_NAME}_${VERSION}_${ARCH}.deb"
 
-echo "📂 [2/7] Criando estrutura de diretórios..."
+echo "📂 [2/7] Criando diretórios..."
 mkdir -p "$BUILD_DIR/DEBIAN"
 mkdir -p "$BUILD_DIR/usr/bin"
 mkdir -p "$BUILD_DIR/usr/share/$APP_NAME"
 mkdir -p "$BUILD_DIR/usr/share/applications"
 mkdir -p "$BUILD_DIR/usr/share/pixmaps"
 
-echo "🎨 [3/7] Copiando ícone SVG..."
-# Copia renomeando para o nome do pacote (mantendo extensão .svg)
+echo "🎨 [3/7] Instalando ícone..."
 cp "$ICON_FILE" "$BUILD_DIR/usr/share/pixmaps/$APP_NAME.svg"
 
-echo "📝 [4/7] Criando arquivo de controle (DEBIAN/control)..."
+echo "📝 [4/7] Configurando dependências..."
 cat > "$BUILD_DIR/DEBIAN/control" << EOF
 Package: $APP_NAME
 Version: $VERSION
@@ -46,11 +43,10 @@ Depends: python3, python3-gi, python3-evdev, python3-websockets, policykit-1, gi
 Section: utils
 Priority: optional
 Description: $DESC
- Servidor para receber comandos do aplicativo Android Volant.
+ Servidor para Joystick Virtual.
 EOF
-# Nota: Adicionei 'gir1.2-rsvg-2.0' nas dependências para garantir suporte a SVG no GTK
 
-echo "🐍 [5/7] Inserindo o código Python..."
+echo "🐍 [5/7] Gerando código Python..."
 cat > "$BUILD_DIR/usr/share/$APP_NAME/conect.py" << 'PYTHON_EOF'
 #!/usr/bin/env python3
 import sys
@@ -65,10 +61,13 @@ import websockets
 import gi
 
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk, GLib, Gdk
 from evdev import UInput, ecodes as e, AbsInfo
 
-# Caminho do ícone SVG instalado
+# --- CORREÇÃO DO ÍCONE NA BARRA DE TAREFAS ---
+# Define o nome do programa para o sistema reconhecer o .desktop correto
+GLib.set_prgname("volant-server")
+
 ICON_PATH = "/usr/share/pixmaps/volant-server.svg"
 
 # --- AUTO ELEVAÇÃO PARA ROOT ---
@@ -136,7 +135,7 @@ class ServerThread(threading.Thread):
         threading.Thread(target=self.broadcast_presence, daemon=True).start()
         
         local_ip = get_local_ip()
-        GLib.idle_add(self.update_callback, f"IP Local: {local_ip}:{WEBSOCKET_PORT}")
+        GLib.idle_add(self.update_callback, f"Ouvindo em: {local_ip}:{WEBSOCKET_PORT}")
         
         start_server = websockets.serve(self.handler, "0.0.0.0", WEBSOCKET_PORT)
         self.loop.run_until_complete(start_server)
@@ -163,7 +162,7 @@ class ServerThread(threading.Thread):
 
     async def handler(self, websocket):
         client_ip = websocket.remote_address[0]
-        GLib.idle_add(self.update_callback, f"Conectado: {client_ip}")
+        GLib.idle_add(self.update_callback, f"Cliente: {client_ip}")
         try:
             async for message in websocket:
                 data = json.loads(message)
@@ -185,7 +184,7 @@ class ServerThread(threading.Thread):
         if self.loop:
             self.loop.call_soon_threadsafe(self.loop.stop)
 
-# --- GTK ---
+# --- GUI ---
 class VolantWindow(Gtk.Window):
     def __init__(self):
         super().__init__(title="Volant Server")
@@ -194,17 +193,19 @@ class VolantWindow(Gtk.Window):
         self.connect("destroy", self.on_close)
         self.set_position(Gtk.WindowPosition.CENTER)
         
-        # Carrega o ícone SVG
+        # Define a Classe da Janela para o Dock reconhecer o ícone
+        self.set_wmclass("volant-server", "Volant Server")
+        
         if os.path.exists(ICON_PATH):
             try:
                 self.set_icon_from_file(ICON_PATH)
             except Exception as e:
-                print(f"Erro ao carregar icone: {e}")
+                print(f"Icon error: {e}")
 
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.add(vbox)
 
-        self.status_label = Gtk.Label(label="<b>Status do Servidor</b>")
+        self.status_label = Gtk.Label(label="<b>Volant Server Ativo</b>")
         self.status_label.set_use_markup(True)
         vbox.pack_start(self.status_label, False, False, 5)
 
@@ -218,8 +219,7 @@ class VolantWindow(Gtk.Window):
 
         self.buffer = self.log_view.get_buffer()
 
-        self.button = Gtk.Button(label="Parar e Sair")
-        self.button.get_style_context().add_class("destructive-action")
+        self.button = Gtk.Button(label="Parar Servidor")
         self.button.connect("clicked", self.on_close)
         vbox.pack_start(self.button, False, False, 5)
 
@@ -247,15 +247,14 @@ PYTHON_EOF
 
 chmod +x "$BUILD_DIR/usr/share/$APP_NAME/conect.py"
 
-echo "🚀 [6/7] Criando lançadores e atalhos..."
-
+echo "🚀 [6/7] Criando lançadores..."
 cat > "$BUILD_DIR/usr/bin/$APP_NAME" << EOF
 #!/bin/bash
 /usr/share/$APP_NAME/conect.py
 EOF
 chmod +x "$BUILD_DIR/usr/bin/$APP_NAME"
 
-# Cria o .desktop apontando para o nome do arquivo (sem extensão, o Linux resolve automaticamente)
+# Criação do .desktop com StartupWMClass
 cat > "$BUILD_DIR/usr/share/applications/$APP_NAME.desktop" << EOF
 [Desktop Entry]
 Name=Volant Server
@@ -265,17 +264,14 @@ Icon=$APP_NAME
 Terminal=false
 Type=Application
 Categories=Utility;Game;
-Keywords=joystick;controller;server;
+StartupNotify=true
+# ESTA LINHA ABAIXO GARANTE QUE O ÍCONE APAREÇA NA BARRA DE TAREFAS
+StartupWMClass=volant-server
 EOF
 
-echo "📦 [7/7] Empacotando .deb..."
+echo "📦 [7/7] Gerando .deb..."
 dpkg-deb --build "$BUILD_DIR" "${APP_NAME}_${VERSION}_${ARCH}.deb"
 
 echo ""
-echo "========================================================"
-echo "✅ SUCESSO! O arquivo .deb com SVG foi gerado."
-echo "   👉 ${APP_NAME}_${VERSION}_${ARCH}.deb"
-echo "========================================================"
-echo "Instalar:"
-echo "   sudo apt install ./${APP_NAME}_${VERSION}_${ARCH}.deb"
-echo ""
+echo "✅ PRONTO! Ícone corrigido."
+echo "   Instale com: sudo apt install ./${APP_NAME}_${VERSION}_${ARCH}.deb"
