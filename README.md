@@ -1,5 +1,5 @@
 
-<img width="1366" height="720" alt="Controller and Server" src="https://github.com/user-attachments/assets/7d6b5ace-5861-4d67-b3ab-d99d04e4a011" />
+<img width="1366" height="720" alt="Controller and Server" src="https://i.pinimg.com/originals/b1/57/56/b1575685d66ef6517e4a9eddaf9dc7ea.png" />
 
 
 # Volant Controller
